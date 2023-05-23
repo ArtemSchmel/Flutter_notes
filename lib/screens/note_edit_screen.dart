@@ -258,7 +258,7 @@ void saveNote(BuildContext context) {
     Navigator.of(context).pushReplacementNamed(
       NoteViewScreen.route,
       arguments: newId, // Передача id новой заметки как аргумент
-    );
+    ).whenComplete(()=>setState((){}));
   }
   @override
     void dispose() {

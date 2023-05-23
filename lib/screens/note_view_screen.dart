@@ -21,17 +21,30 @@ class NoteViewScreen extends StatefulWidget {
 }
 
 class _NoteViewScreenState extends State<NoteViewScreen> {
+
+  late final note;
   late DateTime _scheduledTime;
   late Note selectedNote; // Добавьте late перед объявлением переменной
+ 
   @override
   void didChangeDependencies() {
-    super.didChangeDependencies();
-    final int id = ModalRoute.of(context)?.settings.arguments as int;
-    final provider = Provider.of<NoteProvider>(context);
-    if (provider.getNote(id) != null) {
-      selectedNote = provider.getNote(id);
-    }
+  super.didChangeDependencies();
+  final int id = ModalRoute.of(context)?.settings.arguments as int;
+  
+  // Получение данных из провайдера вне компонента
+  final provider = Provider.of<NoteProvider>(context, listen: false);
+  final note = provider.getNote(id);
+  final String title = note.title;
+  final String content = note.content;
+  final List<String> imagePaths = note.imagePaths;
+  
+  if (note != null) {
+    setState(() {
+      selectedNote = note;
+    });
   }
+}
+
   @override
   Widget build(BuildContext context) {
      return Scaffold(
@@ -118,10 +131,16 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
+            floatingActionButton: FloatingActionButton(
         foregroundColor: Theme.of(context).colorScheme.primary,
         onPressed: () {
-          Navigator.pushNamed(context, NoteEditScreen.route, arguments: selectedNote.id);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => NoteEditScreen(),
+              settings: RouteSettings(arguments: selectedNote.id),
+            ),
+          );
         },
         backgroundColor: Theme.of(context).colorScheme.secondary,
         child: Icon(Icons.edit),
