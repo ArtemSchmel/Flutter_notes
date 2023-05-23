@@ -27,39 +27,39 @@ class NoteProvider with ChangeNotifier {
     await DatabaseHelper.delete(id);
   }
 
-Future addOrUpdateNote(int id, String title, String content, List<String> imagePaths, EditMode editMode) async
-  {
+Future<void> addOrUpdateNote(
+      int id, String title, String content, List<String> imagePaths, EditMode editMode) async {
     final note = Note(id, title, content, imagePaths);
-      
-      if (EditMode.ADD == editMode) {
-        _items.insert(0, note);
-      } else 
-      {
-        _items[_items.indexWhere((note) => note.id == id)] = note;
-      }
 
-      notifyListeners();
-    DatabaseHelper.insert(
-      {
-        'id': note.id,
-        'title': note.title,
-        'content': note.content,
-        'imagePaths': note.imagePaths,
-      },
-    );
+    if (editMode == EditMode.ADD) {
+      _items.insert(0, note);
+    } else {
+      final index = _items.indexWhere((item) => item.id == id);
+      if (index >= 0) {
+        _items[index] = note;
+      }
+    }
+
+    notifyListeners();
+
+    await DatabaseHelper.insertNoteWithMedia({
+      'id': note.id,
+      'title': note.title,
+      'content': note.content,
+    }, note.imagePaths);
   }
 
   Future<void> saveToDatabase() async {
-    for (final note in _items) {
-      final data = {
-        'id': note.id,
-        'title': note.title,
-        'content': note.content,
-        'imagePaths': note.imagePaths.join(','),
-      };
-      await DatabaseHelper.insert(data);
+      for (final note in _items) {
+        final data = {
+          'id': note.id,
+          'title': note.title,
+          'content': note.content,
+          'imagePaths': note.imagePaths.join(','),
+        };
+        await DatabaseHelper.insert(data);
+      }
     }
-  }
 
   Future<void> getNotes() async {
     final notesList = await DatabaseHelper.getNotesFromDB();

@@ -23,7 +23,7 @@ class DatabaseHelper {
     );
   }
 
-static Future<void> insertNoteWithMedia(Map<String, Object> noteData, List<String> mediaPaths) async {
+ static Future<void> insertNoteWithMedia(Map<String, Object?> noteData, List<String> mediaPaths) async {
     final database = await DatabaseHelper.database();
     await database.transaction((txn) async {
       final noteId = await txn.insert('notes', noteData, conflictAlgorithm: ConflictAlgorithm.replace);
