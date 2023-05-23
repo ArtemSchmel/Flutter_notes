@@ -24,20 +24,20 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
 
   late final note;
   late DateTime _scheduledTime;
-  late Note selectedNote; // Добавьте late перед объявлением переменной
+  late Note selectedNote = note;
  
   @override
-  void didChangeDependencies() {
+  void didChangeDependencies() async{
   super.didChangeDependencies();
-  final int id = ModalRoute.of(context)?.settings.arguments as int;
   
-  // Получение данных из провайдера вне компонента
+  final int id = ModalRoute.of(context)?.settings.arguments as int;
   final provider = Provider.of<NoteProvider>(context, listen: false);
-  final note = provider.getNote(id);
+  final note = await provider.getNote(id);
   final String title = note.title;
   final String content = note.content;
   final List<String> imagePaths = note.imagePaths;
-  
+  // Получение данных из провайдера вне компонента
+
   if (note != null) {
     setState(() {
       selectedNote = note;
@@ -134,13 +134,13 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
             floatingActionButton: FloatingActionButton(
         foregroundColor: Theme.of(context).colorScheme.primary,
         onPressed: () {
-          Navigator.push(
+          Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (context) => NoteEditScreen(),
               settings: RouteSettings(arguments: selectedNote.id),
             ),
-          );
+          ).whenComplete(()=>setState((){}));
         },
         backgroundColor: Theme.of(context).colorScheme.secondary,
         child: Icon(Icons.edit),

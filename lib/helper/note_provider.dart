@@ -8,15 +8,14 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 class NoteProvider with ChangeNotifier {
-  late Note? _selectedNote = null;
+  Note? _selectedNote;
   Note? get selectedNote => _selectedNote;
 
-  void setSelectedNote(Note? note) {
-    _selectedNote = note;
-  }
-
   List<Note> _items = [];
-  List<Note> get items => [..._items];
+  List get items
+  {
+    return [..._items];
+  }
 
   Note getNote(int id) {
     return _items.firstWhere((note) => note.id == id, orElse: () => Note.empty());
@@ -28,25 +27,26 @@ class NoteProvider with ChangeNotifier {
     await DatabaseHelper.delete(id);
   }
 
-  Future<void> addOrUpdateNote({
-    required int id,
-    required String title,
-    required String content,
-    required List<String> imagePaths,
-  }) async {
-    final Map<String, Object> noteData = {
-      'id': id,
-      'title': title,
-      'content': content,
-    };
-    await DatabaseHelper.insertNoteWithMedia(noteData, imagePaths);
-    final newNote = Note(id, title, content, imagePaths);
-    final existingNoteIndex = _items.indexWhere((note) => note.id == id);
-    if (existingNoteIndex >= 0) {
-      _items[existingNoteIndex] = newNote; // Update existing note
-    } else {
-      _items.add(newNote); // Add new note
-    }
+Future addOrUpdateNote(int id, String title, String content, List<String> imagePaths, EditMode editMode) async
+  {
+    final note = Note(id, title, content, imagePaths);
+      
+      if (EditMode.ADD == editMode) {
+        _items.insert(0, note);
+      } else 
+      {
+        _items[_items.indexWhere((note) => note.id == id)] = note;
+      }
+
+      notifyListeners();
+    DatabaseHelper.insert(
+      {
+        'id': note.id,
+        'title': note.title,
+        'content': note.content,
+        'imagePaths': note.imagePaths,
+      },
+    );
   }
 
   Future<void> saveToDatabase() async {

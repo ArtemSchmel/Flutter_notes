@@ -239,33 +239,20 @@ void saveNote(BuildContext context) {
 
   final NoteProvider noteProvider = Provider.of<NoteProvider>(context, listen: false);
 
-  if (noteProvider.selectedNote != null) {
-    noteProvider.addOrUpdateNote(
-      id: noteProvider.selectedNote!.id,
-      title: title,
-      content: content,
-      imagePaths: imagePaths,
-    );
-    Navigator.of(context).pop();
-  } else {
-    int newId = DateTime.now().millisecondsSinceEpoch;
-    noteProvider.addOrUpdateNote(
-      id: newId,
-      title: title,
-      content: content,
-      imagePaths: imagePaths,
-    );
-    Navigator.of(context).pushReplacementNamed(
-      NoteViewScreen.route,
-      arguments: newId, // Передача id новой заметки как аргумент
-    ).whenComplete(()=>setState((){}));
+  if (id != null) 
+  {
+      Provider.of<NoteProvider>(this.context, listen: false)
+          .addOrUpdateNote(id!, title, content, imagePaths, EditMode.UPDATE);
+      Navigator.of(this.context).pop();
   }
-  @override
-    void dispose() {
-      titleController.dispose();
-      contentController.dispose();
-      super.dispose();
-    }
+  else 
+  {
+    int id = DateTime.now().millisecondsSinceEpoch;
+    Provider.of<NoteProvider>(this.context, listen: false)
+        .addOrUpdateNote(id, title, content, imagePaths, EditMode.ADD);
+    Navigator.of(this.context)
+        .pushReplacementNamed(NoteViewScreen.route, arguments: id);
+  }
 }
 
 void _showDialog() {

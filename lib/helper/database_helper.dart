@@ -2,6 +2,10 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseHelper {
+  static const String tableName = 'notes'; // Add the tableName property
+
+  static Database? _instance; // Add the instance property
+
   static Future<Database> database() async {
     final databasePath = await getDatabasesPath();
     return openDatabase(
