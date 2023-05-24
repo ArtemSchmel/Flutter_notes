@@ -22,26 +22,25 @@ class NoteViewScreen extends StatefulWidget {
 
 class _NoteViewScreenState extends State<NoteViewScreen> {
 
-  late final note;
   late DateTime _scheduledTime;
-  late Note selectedNote = note;
+  late Note selectedNote = Note.empty();
  
   @override
   void didChangeDependencies() async{
   super.didChangeDependencies();
-  
   final int id = ModalRoute.of(context)?.settings.arguments as int;
   final provider = Provider.of<NoteProvider>(context, listen: false);
   final note = await provider.getNote(id);
   final String title = note.title;
   final String content = note.content;
   final List<String> imagePaths = note.imagePaths;
+  
   // Получение данных из провайдера вне компонента
 
   if (note != null) {
-    setState(() {
-      selectedNote = note;
-    });
+      setState(() {
+        selectedNote = note;
+      });
   }
 }
 
@@ -131,7 +130,7 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
           ],
         ),
       ),
-            floatingActionButton: FloatingActionButton(
+                  floatingActionButton: FloatingActionButton(
         foregroundColor: Theme.of(context).colorScheme.primary,
         onPressed: () {
           Navigator.pushReplacement(
@@ -140,7 +139,11 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
               builder: (context) => NoteEditScreen(),
               settings: RouteSettings(arguments: selectedNote.id),
             ),
-          ).whenComplete(()=>setState((){}));
+          ).whenComplete(() {
+            if (mounted) {
+              setState(() {});
+            }
+          });
         },
         backgroundColor: Theme.of(context).colorScheme.secondary,
         child: Icon(Icons.edit),
