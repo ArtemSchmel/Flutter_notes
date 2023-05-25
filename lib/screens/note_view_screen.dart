@@ -24,35 +24,29 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
   late DateTime _scheduledTime;
   late Note selectedNote = Note.empty();
 
-  List<VideoPlayerController> _videoPlayerControllers = [];
-  List<Future<void>> _initializeVideoPlayerFutures = [];
+  final List<VideoPlayerController> _videoPlayerControllers = [];
+  final List<Future<void>> _initializeVideoPlayerFutures = [];
 
-
-  late VideoPlayerController _videoPlayerController = VideoPlayerController.asset(
-    '',
-  );
-
-  late Future<void> _initializeVideoPlayerFuture = _videoPlayerController.initialize();
-
-@override
+  @override
+    @override
   void didChangeDependencies() async {
     super.didChangeDependencies();
     final int id = ModalRoute.of(context)?.settings.arguments as int;
     final provider = Provider.of<NoteProvider>(context, listen: false);
     final note = await provider.getNote(id);
 
-    if (note != null) {
-      setState(() {
-        selectedNote = note;
-      });
-    }
-  }
+  setState(() {
+    selectedNote = note;
+    _initializeVideoPlayers(); // Вызов метода после загрузки данных
+  });
+}
   
-  @override
-  void initState() {
-    super.initState();
-    _initializeVideoPlayers();
-  }
+@override
+void initState() {
+  super.initState();
+  _initializeVideoPlayers();
+  setState(() {});
+}
 
   void _initializeVideoPlayers() {
     for (final videoPath in selectedNote.videoPaths) {
@@ -137,7 +131,7 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                 Text(selectedNote.date),
               ],
             ),
-            if (selectedNote.imagePaths != null && selectedNote.imagePaths.isNotEmpty)
+            if (selectedNote.imagePaths.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: Column(
@@ -152,7 +146,7 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                   ],
                 ),
               ),
-            if (selectedNote.videoPaths != null && selectedNote.videoPaths.isNotEmpty)
+            if (selectedNote.videoPaths.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: Column(
@@ -160,19 +154,25 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                     for (int i = 0; i < selectedNote.videoPaths.length; i++)
                       Column(
                         children: [
-                          FutureBuilder(
-                            future: _initializeVideoPlayerFuture,
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.done) {
-                                return AspectRatio(
-                                  aspectRatio: _videoPlayerController.value.aspectRatio,
-                                  child: VideoPlayer(_videoPlayerController),
-                                );
-                              } else {
-                                return CircularProgressIndicator();
-                              }
-                            },
-                          ),
+                        FutureBuilder(
+                          future: _initializeVideoPlayerFutures[i],
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              // Обработка ошибок
+                              print('Error loading video: ${snapshot.error}');
+                              return Text('Error loading video: ${snapshot.error}');
+                            }
+                            if (snapshot.connectionState == ConnectionState.done) {
+                              final videoPlayerController = _videoPlayerControllers[i];
+                              return AspectRatio(
+                                aspectRatio: videoPlayerController.value.aspectRatio,
+                                child: VideoPlayer(_videoPlayerControllers[i]),
+                              );
+                            } else {
+                              return const CircularProgressIndicator();
+                            }
+                          },
+                        ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -180,7 +180,7 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                                 icon: Icon(Icons.play_arrow),
                                 onPressed: () {
                                   setState(() {
-                                    _videoPlayerController.play();
+                                    _videoPlayerControllers[i].play();
                                   });
                                 },
                               ),
@@ -188,9 +188,9 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                                 icon: Icon(Icons.pause),
                                 onPressed: () {
                                   setState(() {
-                                    _videoPlayerController.pause();
+                                   _videoPlayerControllers[i].pause();
                                   });
-                                },
+                                },       
                               ),
                             ],
                           ),

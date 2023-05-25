@@ -1,22 +1,21 @@
-import 'package:flutter/src/widgets/framework.dart';
-import 'package:flutter/src/widgets/placeholder.dart';
+import 'dart:io';
+import 'package:path/path.dart' as Path;
 import 'package:flutter/material.dart';
-import 'package:notes_app/models/note.dart';
-import 'package:notes_app/utils/constants.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/src/widgets/framework.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:multi_image_picker/multi_image_picker.dart';
 import 'package:notes_app/helper/note_provider.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:notes_app/widgets/delete_popup.dart';
+import 'package:notes_app/models/note.dart';
+import 'package:notes_app/utils/constants.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:provider/provider.dart';
-import 'note_view_screen.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'dart:typed_data';
-import 'package:flutter/services.dart';
-import 'package:path/path.dart' as Path;
-import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
+import '../widgets/delete_popup.dart';
+
+import 'note_view_screen.dart';
 
 class NoteEditScreen extends StatefulWidget {
   static const route = '/edit-note';
@@ -38,31 +37,33 @@ class _NoteEditScreenState extends State<NoteEditScreen> {
   Note? selectedNote;
   late int? id;
 
-@override
-void didChangeDependencies() {
-  super.didChangeDependencies();
-  if (firstTime) {
-    id = ModalRoute.of(context)?.settings.arguments as int?;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (firstTime) {
+      id = ModalRoute.of(context)?.settings.arguments as int?;
 
-    if (id != null) {
-      selectedNote = Provider.of<NoteProvider>(
-        context,
-        listen: false,
-      ).getNote(id!);
-      if (selectedNote != null) {
-        titleController.text = selectedNote!.title;
-        contentController.text = selectedNote!.content;
-        if (selectedNote!.imagePaths.isNotEmpty) {
-          _images = selectedNote!.imagePaths.map((path) => File(path)).toList();
-        }
-        if (selectedNote!.videoPaths.isNotEmpty) {
-          _videos = selectedNote!.videoPaths.map((path) => File(path)).toList();
+      if (id != null) {
+        selectedNote = Provider.of<NoteProvider>(
+          context,
+          listen: false,
+        ).getNote(id!);
+        if (selectedNote != null) {
+          titleController.text = selectedNote!.title;
+          contentController.text = selectedNote!.content;
+          if (selectedNote!.imagePaths.isNotEmpty) {
+            _images = selectedNote!.imagePaths.map((path) => File(path)).toList();
+          }
+          if (selectedNote!.videoPaths.isNotEmpty) {
+            _videos = selectedNote!.videoPaths.map((path) => File(path)).toList();
+          }
         }
       }
+      firstTime = false;
+
+      setState(() {});
     }
-    firstTime = false;
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -81,14 +82,14 @@ void didChangeDependencies() {
             icon: Icon(Icons.photo_camera),
             color: Theme.of(context).colorScheme.onPrimary,
             onPressed: () {
-              getImage(ImageSource.camera);
+              getImageFromCamera();
             },
           ),
           IconButton(
             icon: Icon(Icons.insert_photo),
             color: Theme.of(context).colorScheme.onPrimary,
             onPressed: () {
-              getImage(ImageSource.gallery);
+              getImageFromGallery();
             },
           ),
           IconButton(
@@ -127,7 +128,7 @@ void didChangeDependencies() {
                 textCapitalization: TextCapitalization.sentences,
                 style: createTitle,
                 decoration: InputDecoration(
-                  hintText: 'Введите заголовок заметки',
+                  hintText: 'Enter note title',
                   border: InputBorder.none,
                 ),
               ),
@@ -194,7 +195,9 @@ void didChangeDependencies() {
                             color: Colors.grey[300],
                           ),
                           child: _videos.isNotEmpty && index < _videos.length
-                              ? VideoPlayer(_createVideoPlayerController(File(_videos[index].path)))
+                              ? VideoPlayer(
+                                  _createVideoPlayerController(
+                                      File(_videos[index].path)))
                               : Container(),
                         ),
                         Positioned(
@@ -232,7 +235,7 @@ void didChangeDependencies() {
                 maxLines: null,
                 style: createContent,
                 decoration: InputDecoration(
-                  hintText: 'Введите что-нибудь...',
+                  hintText: 'Enter something...',
                   border: InputBorder.none,
                 ),
               ),
@@ -243,8 +246,8 @@ void didChangeDependencies() {
       floatingActionButton: FloatingActionButton(
         foregroundColor: Theme.of(context).colorScheme.primary,
         onPressed: () {
-          if (titleController.text.isEmpty) titleController.text = 'Заметка без темы';
-          saveNote();
+          if (titleController.text.isEmpty) titleController.text = 'Untitled Note';
+          saveNote(context);
         },
         backgroundColor: Theme.of(context).colorScheme.secondary,
         child: Icon(Icons.save),
@@ -252,77 +255,84 @@ void didChangeDependencies() {
     );
   }
 
-  void getImage(ImageSource imageSource) async {
-    if (imageSource == ImageSource.camera) {
-      final pickedFile = await picker.getImage(source: imageSource);
-
-      if (pickedFile != null) {
-        setState(() {
-          _images.add(File(pickedFile.path));
-        });
-      }
-    } else if (imageSource == ImageSource.gallery) {
-      List<Asset>? assets = await MultiImagePicker.pickImages(
-        maxImages: 999,
-        enableCamera: false,
-        selectedAssets: [],
-        materialOptions: MaterialOptions(
-          actionBarColor: "#abcdef",
-          statusBarColor: "#abcdef",
-          actionBarTitle: "Select Images",
-          allViewTitle: "All Photos",
-          selectionLimitReachedText: "You have reached the maximum limit.",
-        ),
-      );
-
-      if (assets == null) return;
-
-      List<File> tempImages = [];
-
-      for (var asset in assets) {
-        final byteData = await asset.getByteData();
-        final buffer = byteData.buffer;
-        final tempDir = await getTemporaryDirectory();
-        final fileName = Path.basename(asset.name ?? 'image.png');
-        final tempFilePath = '${tempDir.path}/$fileName';
-        final file = await File(tempFilePath).writeAsBytes(buffer.asUint8List());
-
-        tempImages.add(file);
-      }
-
-      setState(() {
-        _images.addAll(tempImages);
-      });
-    }
-  }
-
-  void getVideo() async {
-    final pickedFile = await picker.getVideo(source: ImageSource.gallery);
+  void getImageFromCamera() async {
+    final pickedFile = await picker.getImage(source: ImageSource.camera);
 
     if (pickedFile != null) {
       setState(() {
-        _videos.add(File(pickedFile.path));
+        _images.add(File(pickedFile.path));
       });
     }
   }
 
-  void saveNote() {
+  void getImageFromGallery() async {
+    List<Asset>? assets = await MultiImagePicker.pickImages(
+      maxImages: 999,
+      enableCamera: false,
+      selectedAssets: [],
+      materialOptions: MaterialOptions(
+        actionBarColor: "#abcdef",
+        statusBarColor: "#abcdef",
+        actionBarTitle: "Select Images",
+        allViewTitle: "All Photos",
+        selectionLimitReachedText: "You have reached the maximum limit.",
+      ),
+    );
+
+    if (assets == null) return;
+
+    List<File> tempImages = [];
+
+    for (var asset in assets) {
+      final byteData = await asset.getByteData();
+      final buffer = byteData.buffer;
+      final tempDir = await getTemporaryDirectory();
+      final fileName = Path.basename(asset.name ?? 'image.png');
+      final tempFilePath = '${tempDir.path}/$fileName';
+      final file = await File(tempFilePath).writeAsBytes(buffer.asUint8List());
+
+      tempImages.add(file);
+    }
+
+    setState(() {
+      _images.addAll(tempImages);
+    });
+  }
+  
+void getVideo() async {
+  var status = await Permission.storage.status;
+  if (!status.isGranted) {
+    await Permission.storage.request();
+  }
+
+  final pickedFile = await picker.pickVideo(source: ImageSource.gallery);
+
+  if (pickedFile != null) {
+    setState(() {
+      _videos.add(File(pickedFile.path));
+    });
+  }
+}
+  void saveNote(BuildContext context) {
     String title = titleController.text.trim();
     String content = contentController.text.trim();
     List<String> imagePaths = _images.map((image) => image.path).toList();
     List<String> videoPaths = _videos.map((video) => video.path).toList();
 
-    final NoteProvider noteProvider = Provider.of<NoteProvider>(context, listen: false);
-
-    if (id != null) {
-      Provider.of<NoteProvider>(context, listen: false)
-      .addOrUpdateNote(id!, title, content, imagePaths, videoPaths, EditMode.UPDATE);
-      Navigator.of(context).pop();
-    } else {
+    if (id != null) 
+    {
+      Provider.of<NoteProvider>(this.context, listen: false)
+          .addOrUpdateNote(id!, title, content, imagePaths, videoPaths, EditMode.UPDATE);
+      Navigator.of(this.context)
+      .pushReplacementNamed(NoteViewScreen.route, arguments: id);
+    }
+  else 
+    {
       int id = DateTime.now().millisecondsSinceEpoch;
-      Provider.of<NoteProvider>(context, listen: false)
-      .addOrUpdateNote(id, title, content, imagePaths, videoPaths, EditMode.ADD);
-      Navigator.of(context).pushReplacementNamed(NoteViewScreen.route, arguments: id);
+      Provider.of<NoteProvider>(this.context, listen: false)
+      .addOrUpdateNote( id, title, content, imagePaths, videoPaths, EditMode.ADD);
+      Navigator.of(this.context)
+      .pushReplacementNamed(NoteViewScreen.route,arguments: id);
     }
   }
 
