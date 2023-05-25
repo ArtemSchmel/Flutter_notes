@@ -12,8 +12,7 @@ class NoteProvider with ChangeNotifier {
   Note? get selectedNote => _selectedNote;
 
   List<Note> _items = [];
-  List get items
-  {
+  List get items {
     return [..._items];
   }
 
@@ -28,53 +27,57 @@ class NoteProvider with ChangeNotifier {
   }
 
 Future<void> addOrUpdateNote(
-      int id, String title, String content, List<String> imagePaths, EditMode editMode) async {
-    final note = Note(id, title, content, imagePaths);
+    int id, String title, String content, List<String> imagePaths, List<String> videoPaths, EditMode editMode) async {
+  final note = Note(id, title, content, imagePaths, videoPaths);
 
-    if (editMode == EditMode.ADD) {
-      _items.insert(0, note);
-    } else {
-      final index = _items.indexWhere((item) => item.id == id);
-      if (index >= 0) {
-        _items[index] = note;
-      }
+  if (editMode == EditMode.ADD) {
+    _items.insert(0, note);
+  } else {
+    final index = _items.indexWhere((item) => item.id == id);
+    if (index >= 0) {
+      _items[index] = note;
     }
+  }
 
-    notifyListeners();
+  notifyListeners();
 
-    await DatabaseHelper.insertNoteWithMedia({
+  await DatabaseHelper.insertNoteWithMedia(
+    {
       'id': note.id,
       'title': note.title,
       'content': note.content,
-    }, note.imagePaths);
-  }
-
+    },
+    note.imagePaths,
+    note.videoPaths,
+  );
+}
   Future<void> saveToDatabase() async {
-      for (final note in _items) {
-        final data = {
-          'id': note.id,
-          'title': note.title,
-          'content': note.content,
-          'imagePaths': note.imagePaths.join(','),
-        };
-        await DatabaseHelper.insert(data);
-      }
+    for (final note in _items) {
+      final data = {
+        'id': note.id,
+        'title': note.title,
+        'content': note.content,
+        'imagePaths': note.imagePaths.join(','),
+        'videoPaths': note.videoPaths.join(','),
+      };
+      await DatabaseHelper.insert(data);
     }
-
-  Future<void> getNotes() async {
-    final notesList = await DatabaseHelper.getNotesFromDB();
-
-    _items = notesList
-        .map((item) => Note(
-              item['id'] as int,
-              item['title'] as String,
-              item['content'] as String,
-              (item['imagePaths'] as String?)?.split(',') ?? [],
-            ))
-        .toList();
-
-    notifyListeners();
   }
+
+Future<void> getNotes() async {
+  final notesList = await DatabaseHelper.getNotesFromDB();
+
+  _items = notesList
+      .map((item) => Note(
+            item['id'] as int,
+            item['title'] as String,
+            item['content'] as String,
+            (item['imagePaths'] as String?)?.split(',') ?? [],
+            (item['videoPaths'] as String?)?.split(',') ?? [],
+          ))
+      .toList();
+  notifyListeners();
+}
 
   Future<void> scheduleNotification(
     String title, String body, DateTime scheduledDate) async {

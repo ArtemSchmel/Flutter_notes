@@ -57,7 +57,7 @@ var viewTitleStyle = GoogleFonts.roboto(
   fontSize: 28.0,
 );
 var viewContentStyle = GoogleFonts.roboto(
-    letterSpacing: 1.0,
+    letterSpacing: 0,
     fontSize: 20.0,
     height: 1.5,
     fontWeight: FontWeight.w400);

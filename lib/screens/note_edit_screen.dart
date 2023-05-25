@@ -16,9 +16,11 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as Path;
 import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:video_player/video_player.dart';
 
 class NoteEditScreen extends StatefulWidget {
   static const route = '/edit-note';
+
   @override
   _NoteEditScreenState createState() => _NoteEditScreenState();
 }
@@ -28,6 +30,7 @@ class _NoteEditScreenState extends State<NoteEditScreen> {
   final contentController = TextEditingController();
 
   List<File> _images = [];
+  List<File> _videos = [];
 
   final picker = ImagePicker();
 
@@ -35,7 +38,7 @@ class _NoteEditScreenState extends State<NoteEditScreen> {
   Note? selectedNote;
   late int? id;
 
-    @override
+@override
 void didChangeDependencies() {
   super.didChangeDependencies();
   if (firstTime) {
@@ -52,11 +55,12 @@ void didChangeDependencies() {
         if (selectedNote!.imagePaths.isNotEmpty) {
           _images = selectedNote!.imagePaths.map((path) => File(path)).toList();
         }
+        if (selectedNote!.videoPaths.isNotEmpty) {
+          _videos = selectedNote!.videoPaths.map((path) => File(path)).toList();
+        }
       }
     }
     firstTime = false;
-
-    setState(() {}); // Trigger UI rebuild
   }
 }
 
@@ -85,6 +89,13 @@ void didChangeDependencies() {
             color: Theme.of(context).colorScheme.onPrimary,
             onPressed: () {
               getImage(ImageSource.gallery);
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.video_library),
+            color: Theme.of(context).colorScheme.onPrimary,
+            onPressed: () {
+              getVideo();
             },
           ),
           IconButton(
@@ -137,7 +148,7 @@ void didChangeDependencies() {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12.0),
                             image: DecorationImage(
-                              image: FileImage(_images[index]),
+                              image: FileImage(File(_images[index].path)),
                               fit: BoxFit.cover,
                             ),
                           ),
@@ -155,6 +166,50 @@ void didChangeDependencies() {
                               onPressed: () {
                                 setState(() {
                                   _images.removeAt(index);
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            if (_videos.isNotEmpty)
+              Container(
+                padding: EdgeInsets.all(10.0),
+                height: 250.0,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _videos.length,
+                  itemBuilder: (context, index) {
+                    return Stack(
+                      children: [
+                        Container(
+                          margin: EdgeInsets.only(right: 8.0),
+                          width: 80.0,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12.0),
+                            color: Colors.grey[300],
+                          ),
+                          child: _videos.isNotEmpty && index < _videos.length
+                              ? VideoPlayer(_createVideoPlayerController(File(_videos[index].path)))
+                              : Container(),
+                        ),
+                        Positioned(
+                          top: 5.0,
+                          right: 5.0,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                            ),
+                            child: IconButton(
+                              icon: Icon(Icons.delete),
+                              onPressed: () {
+                                setState(() {
+                                  _videos.removeAt(index);
                                 });
                               },
                             ),
@@ -185,12 +240,11 @@ void didChangeDependencies() {
           ],
         ),
       ),
-            floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton(
         foregroundColor: Theme.of(context).colorScheme.primary,
         onPressed: () {
-          if (titleController.text.isEmpty) 
-            titleController.text = 'Заметка без темы';
-          saveNote(context);
+          if (titleController.text.isEmpty) titleController.text = 'Заметка без темы';
+          saveNote();
         },
         backgroundColor: Theme.of(context).colorScheme.secondary,
         child: Icon(Icons.save),
@@ -198,88 +252,94 @@ void didChangeDependencies() {
     );
   }
 
-void getImage(ImageSource imageSource) async {
-  List<Asset>? assets = await MultiImagePicker.pickImages(
-    maxImages: 999,
-    enableCamera: true,
-    selectedAssets: [],
-    materialOptions: MaterialOptions(
-      actionBarColor: "#abcdef",
-      statusBarColor: "#abcdef",
-      actionBarTitle: "Select Images",
-      allViewTitle: "All Photos",
-      selectionLimitReachedText: "You have reached the maximum limit.",
-    ),
-  );
+  void getImage(ImageSource imageSource) async {
+    if (imageSource == ImageSource.camera) {
+      final pickedFile = await picker.getImage(source: imageSource);
 
-  if (assets == null) return;
+      if (pickedFile != null) {
+        setState(() {
+          _images.add(File(pickedFile.path));
+        });
+      }
+    } else if (imageSource == ImageSource.gallery) {
+      List<Asset>? assets = await MultiImagePicker.pickImages(
+        maxImages: 999,
+        enableCamera: false,
+        selectedAssets: [],
+        materialOptions: MaterialOptions(
+          actionBarColor: "#abcdef",
+          statusBarColor: "#abcdef",
+          actionBarTitle: "Select Images",
+          allViewTitle: "All Photos",
+          selectionLimitReachedText: "You have reached the maximum limit.",
+        ),
+      );
 
-  List<File> tempImages = [];
+      if (assets == null) return;
 
-  for (var asset in assets) {
-    final byteData = await asset.getByteData();
-    final buffer = byteData.buffer;
-    final tempDir = await getTemporaryDirectory();
-    final fileName = Path.basename(asset.name ?? 'image.png');
-    final tempFilePath = '${tempDir.path}/$fileName';
-    final file = await File(tempFilePath).writeAsBytes(buffer.asUint8List());
+      List<File> tempImages = [];
 
-    tempImages.add(file);
+      for (var asset in assets) {
+        final byteData = await asset.getByteData();
+        final buffer = byteData.buffer;
+        final tempDir = await getTemporaryDirectory();
+        final fileName = Path.basename(asset.name ?? 'image.png');
+        final tempFilePath = '${tempDir.path}/$fileName';
+        final file = await File(tempFilePath).writeAsBytes(buffer.asUint8List());
+
+        tempImages.add(file);
+      }
+
+      setState(() {
+        _images.addAll(tempImages);
+      });
+    }
   }
 
-  setState(() {
-    _images.addAll(tempImages);
-  });
-}
+  void getVideo() async {
+    final pickedFile = await picker.getVideo(source: ImageSource.gallery);
 
-void saveNote(BuildContext context) {
-  String title = titleController.text.trim();
-  String content = contentController.text.trim();
-  List<String> imagePaths = _images.map((image) => image.path).toList();
-
-  final NoteProvider noteProvider = Provider.of<NoteProvider>(context, listen: false);
-
-  if (id != null) 
-  {
-      Provider.of<NoteProvider>(this.context, listen: false)
-          .addOrUpdateNote(id!, title, content, imagePaths, EditMode.UPDATE);
-      Navigator.of(this.context).pop();
+    if (pickedFile != null) {
+      setState(() {
+        _videos.add(File(pickedFile.path));
+      });
+    }
   }
-  else 
-  {
-    int id = DateTime.now().millisecondsSinceEpoch;
-    Provider.of<NoteProvider>(this.context, listen: false)
-        .addOrUpdateNote(id, title, content, imagePaths, EditMode.ADD);
-    Navigator.of(this.context)
-        .pushReplacementNamed(NoteViewScreen.route, arguments: id);
+
+  void saveNote() {
+    String title = titleController.text.trim();
+    String content = contentController.text.trim();
+    List<String> imagePaths = _images.map((image) => image.path).toList();
+    List<String> videoPaths = _videos.map((video) => video.path).toList();
+
+    final NoteProvider noteProvider = Provider.of<NoteProvider>(context, listen: false);
+
+    if (id != null) {
+      Provider.of<NoteProvider>(context, listen: false)
+      .addOrUpdateNote(id!, title, content, imagePaths, videoPaths, EditMode.UPDATE);
+      Navigator.of(context).pop();
+    } else {
+      int id = DateTime.now().millisecondsSinceEpoch;
+      Provider.of<NoteProvider>(context, listen: false)
+      .addOrUpdateNote(id, title, content, imagePaths, videoPaths, EditMode.ADD);
+      Navigator.of(context).pushReplacementNamed(NoteViewScreen.route, arguments: id);
+    }
   }
-}
 
-void _showDialog() {
-  showDialog(
-    context: context,
-    builder: (context) {
-      return DeletePopUp(selectedNote: selectedNote!);
-    },
-  );
-}
+  VideoPlayerController _createVideoPlayerController(File videoFile) {
+    final videoPlayerController = VideoPlayerController.file(videoFile);
+    videoPlayerController.initialize().then((_) {
+      setState(() {});
+    });
+    return videoPlayerController;
+  }
 
-  Future<void> scheduleNotification(
-      String title, String body, DateTime scheduledDate) async {
-    var androidDetails = new AndroidNotificationDetails(
-        'channelId', 'Local Notification',
-        importance: Importance.high);
-
-    var platformDetails = new NotificationDetails(android: androidDetails);
-
-    await FlutterLocalNotificationsPlugin().schedule(
-      0,
-      title,
-      body,
-      scheduledDate,
-      platformDetails,
-      payload: 'Custom_Sound',
-      androidAllowWhileIdle: true,
+  void _showDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return DeletePopUp(selectedNote: selectedNote!);
+      },
     );
   }
 }

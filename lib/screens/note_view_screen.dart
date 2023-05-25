@@ -1,6 +1,5 @@
-import 'dart:async';
 import 'dart:io';
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:notes_app/helper/note_provider.dart';
 import 'package:notes_app/models/note.dart';
@@ -10,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_share/flutter_share.dart';
 import 'note_edit_screen.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:video_player/video_player.dart';
 
 class NoteViewScreen extends StatefulWidget {
   NoteViewScreen({Key? key}) : super(key: key);
@@ -21,32 +21,53 @@ class NoteViewScreen extends StatefulWidget {
 }
 
 class _NoteViewScreenState extends State<NoteViewScreen> {
-
   late DateTime _scheduledTime;
   late Note selectedNote = Note.empty();
- 
-  @override
-  void didChangeDependencies() async{
-  super.didChangeDependencies();
-  final int id = ModalRoute.of(context)?.settings.arguments as int;
-  final provider = Provider.of<NoteProvider>(context, listen: false);
-  final note = await provider.getNote(id);
-  final String title = note.title;
-  final String content = note.content;
-  final List<String> imagePaths = note.imagePaths;
-  
-  // Получение данных из провайдера вне компонента
 
-  if (note != null) {
+  List<VideoPlayerController> _videoPlayerControllers = [];
+  List<Future<void>> _initializeVideoPlayerFutures = [];
+
+
+  late VideoPlayerController _videoPlayerController = VideoPlayerController.asset(
+    '',
+  );
+
+  late Future<void> _initializeVideoPlayerFuture = _videoPlayerController.initialize();
+
+@override
+  void didChangeDependencies() async {
+    super.didChangeDependencies();
+    final int id = ModalRoute.of(context)?.settings.arguments as int;
+    final provider = Provider.of<NoteProvider>(context, listen: false);
+    final note = await provider.getNote(id);
+
+    if (note != null) {
       setState(() {
         selectedNote = note;
       });
+    }
   }
-}
+  
+  @override
+  void initState() {
+    super.initState();
+    _initializeVideoPlayers();
+  }
+
+  void _initializeVideoPlayers() {
+    for (final videoPath in selectedNote.videoPaths) {
+      final videoPlayerController = VideoPlayerController.file(File(videoPath));
+      final initializeVideoPlayerFuture = videoPlayerController.initialize();
+      _videoPlayerControllers.add(videoPlayerController);
+      _initializeVideoPlayerFutures.add(initializeVideoPlayerFuture);
+    }
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
-     return Scaffold(
+    return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         elevation: 0.7,
@@ -61,7 +82,7 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
           },
         ),
         actions: [
-           IconButton(
+          IconButton(
             icon: Icon(Icons.share),
             color: Theme.of(context).colorScheme.onPrimary,
             onPressed: shareNote,
@@ -99,7 +120,8 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.all(8.0),
-              child: Text(selectedNote.title,
+              child: Text(
+                selectedNote.title,
                 style: viewTitleStyle,
               ),
             ),
@@ -112,14 +134,72 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                     size: 18,
                   ),
                 ),
-                Text(selectedNote.date)
+                Text(selectedNote.date),
               ],
             ),
-            if (selectedNote.imagePaths != null && selectedNote.imagePaths.isNotEmpty) 
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: Image.file(File(selectedNote.imagePaths[0])),
-            ),
+            if (selectedNote.imagePaths != null && selectedNote.imagePaths.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Column(
+                  children: [
+                    for (int i = 0; i < selectedNote.imagePaths.length; i++)
+                      Column(
+                        children: [
+                          Image.file(File(selectedNote.imagePaths[i])),
+                          SizedBox(height: 8.0), // Пустое расстояние между изображениями
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            if (selectedNote.videoPaths != null && selectedNote.videoPaths.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Column(
+                  children: [
+                    for (int i = 0; i < selectedNote.videoPaths.length; i++)
+                      Column(
+                        children: [
+                          FutureBuilder(
+                            future: _initializeVideoPlayerFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.done) {
+                                return AspectRatio(
+                                  aspectRatio: _videoPlayerController.value.aspectRatio,
+                                  child: VideoPlayer(_videoPlayerController),
+                                );
+                              } else {
+                                return CircularProgressIndicator();
+                              }
+                            },
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.play_arrow),
+                                onPressed: () {
+                                  setState(() {
+                                    _videoPlayerController.play();
+                                  });
+                                },
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.pause),
+                                onPressed: () {
+                                  setState(() {
+                                    _videoPlayerController.pause();
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 8.0), // Пустое расстояние между видеофайлами
+                        ],
+                      ),
+                  ],
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Text(
@@ -130,7 +210,7 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
           ],
         ),
       ),
-                  floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton(
         foregroundColor: Theme.of(context).colorScheme.primary,
         onPressed: () {
           Navigator.pushReplacement(
@@ -150,7 +230,8 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
       ),
     );
   }
- void _showDialog() {
+
+  void _showDialog() {
     showDialog(
       context: context,
       builder: (context) {
@@ -158,11 +239,20 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
       },
     );
   }
- Future<void> shareNote() async {
+
+  @override
+  void dispose() {
+    for (final controller in _videoPlayerControllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> shareNote() async {
     await FlutterShare.share(
       title: 'Example share',
       text:
-          'Тема заметки: ${selectedNote?.title} \n Содержание заметки: ${selectedNote?.content}',
+          'Тема заметки: ${selectedNote.title} \n Содержание заметки: ${selectedNote.content}',
       chooserTitle: 'Where to Share the Notes',
     );
   }
